@@ -77,20 +77,6 @@ mainProg: {		// <- Here we define a scope
 		lda #$02
 		sta $0286
 
-		/*
-		jsr playBigBeep
-		jsr setDelay1
-		jsr setDelay1
-		jsr playBigBeep
-		jsr setDelay1
-		jsr setDelay1
-		jsr setDelay1
-		jsr playBigBeep
-		jsr setDelay1
-		jsr setDelay1
-		jsr setDelay1
-		*/
-
 		//activate 3c000 screen
 		//lda #$F5 //5- uppercase chars
 		lda #$F6   //6- lowercase chars
@@ -167,7 +153,7 @@ rnd1:   jsr setSIDGenerator
 		ldx #1
 		stx y_pos
 
-		ldx #3
+		ldx #10
 		stx main_deley_speed
 
 		//set x_pos at seed value!
@@ -199,6 +185,8 @@ rnd1:   jsr setSIDGenerator
  // Add 41 to the low byte
 loop1:	  
 		jsr checkIfPositionsAreEmpty
+		// positions_taken = #% 0 0 0 0           0            0      0       0
+		//                            [down left] [down right] [down] [right] [left] 
 
 		ldx #0
 		stx x_offset
@@ -224,61 +212,23 @@ left:   lda $DC00 //56320
 		//inc main_deley_speed
 		sec
 		dec x_pos
+		inc y_pos
 
-	    sec
-	    lda position
-	    sbc #1
-	    sta position
-		lda position+1
-		sbc #0 
-	    sta position+1
+		clc
+		lda position
+		adc #39       //add 39 colums
+		sta position
+		// If carry is set, increment the high byte
+		bcc skipleft4
+		inc position+1
+skipleft4:	clc	    
 
-		//dec position
-		//bne skipll1
-		//dec position+1
-//skipll1:
+		jsr AnimateLeftMove
 
-		//---------------------------------------------------
-		//here we delete old position and switch to new position
-		/*	
-		lda #$20  //char that we want to print
-        ldy #x0 //offset
-        sta (old_position), y
-        */
-		//Left switch
-		lda #248  //char that we want to print
-        ldy #0 //offset
-        sta (old_position), y
-
-		lda #247  //char that we want to print
-        ldy #x0 //offset
-        sta (position), y 
-
-		jsr setPositionColor1
-
-		jsr setDelay1
-		//jsr setDelay2
-		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
-
-		lda #$20  //char that we want to print
-        ldy #x0 //offset
-        sta (old_position), y
-
-        jsr clearOldPositionColor1
-
-		lda #228  //char that we want to print
-        ldy #x0 //offset
-        sta (position), y
-
-		jsr setDelay1
-		//jsr setDelay2
-		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
-		//---------------------------------------------------
 		lda position
         sta old_position 
 		lda position+1
         sta old_position+1 
-
 
 right:	lda $DC00 //56320	
 		and #8
@@ -302,51 +252,20 @@ right:	lda $DC00 //56320
 		//inc main_deley_speed
 		clc
 		inc x_pos
+		inc y_pos
 
 		clc
-		inc position
-		bne skiprr11
+		lda position
+		adc #41       //add 40 colums
+		sta position
+		// If carry is set, increment the high byte
+		bcc skipright34
 		inc position+1
-skiprr11:
+skipright34:	clc	 
 
-		//here we delete old position and switch to new position
-		//---------------------------------------------------
-		/*
-		lda #$20  //char that we want to print
-        ldy #x0 //offset
-        sta (old_position), y
-        */
-		//Right switch
-		lda #245  //char that we want to print
-        ldy #0 //offset
-        sta (old_position), y
 
-		lda #246  //char that we want to print
-        ldy #x0 //offset
-        sta (position), y 
-		
-		jsr setPositionColor1
+		jsr AnimateRightMove
 
-		jsr setDelay1
-		//jsr setDelay2
-		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
-
-		lda #$20  //char that we want to print
-        ldy #x0 //offset
-        sta (old_position), y
-
-        jsr clearOldPositionColor1
-
-		lda #228  //char that we want to print
-        ldy #x0 //offset
-        sta (position), y  
-
-		//jsr setPositionColor1
-
-		jsr setDelay1
-		//jsr setDelay2
-		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!      
-		//---------------------------------------------------
 		lda position
         sta old_position 
 		lda position+1
@@ -357,8 +276,9 @@ button:	lda $DC00 //56320
 		and #16
 		bne continuedropping
 
-		ldx #1
-		stx main_deley_speed
+		//ldx #1
+		//stx main_deley_speed
+		jsr setPositionAndColorIndex
 
 
 continuedropping:
@@ -386,9 +306,10 @@ skip:	clc
 
 //------------------------------------------------
 //Clear old position
-frame1:   lda $d012		// Wait for frame
-		  cmp #$ff
-		  bne frame1
+frame1: 
+		lda $d012		// Wait for frame
+		cmp #$ff
+		bne frame1
 
 		lda #121  //char that we want to print
         ldy #x0 //offset
@@ -400,8 +321,7 @@ frame1:   lda $d012		// Wait for frame
 
 		jsr setPositionColor1
 
-		jsr setDelay1
-		//jsr setDelay2
+		jsr setDelay2
 		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
 
 frame2: lda $d012		// Wait for frame
@@ -420,8 +340,8 @@ frame2: lda $d012		// Wait for frame
 
 		//jsr setPositionColor1
 
-		jsr setDelay1
-		//jsr setDelay2
+		jsr setDelay2
+
 		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
 
 
@@ -474,13 +394,298 @@ delaypos:
         sta old_position+1 
 		//----------------------------------------
 
-
-
 		jmp loop1				  				
 
 exit:	rts
 			
 }
+
+AnimateLeftMove: {
+
+	    //we are animate from b to c
+	    //a b
+	    //c d
+		//.byte	$00,$00,$00,$00,$07,$0F,$0D,$0F	// #252 $FC [left up]
+		//.byte	$00,$00,$00,$00,$E0,$F0,$B0,$F0	// #253 $FD [right up]
+		//.byte	$0F,$0F,$0E,$0F,$07,$00,$00,$00	// #254 $FE [left down]
+		//.byte	$F0,$F0,$70,$F0,$E0,$00,$00,$00	// #255 $FF [right down]
+		//---------------------------------------------------
+		// a -- (old_position-1) - #252 - temp_position4
+		// b -- old_position - #253
+		// c -- position - #254
+		// d -- (position+1) - #255  - temp_position3
+
+		/*
+		setTempPositionColor3
+		clearTempPositionColor3
+
+		setTempPositionColor4
+		clearTempPositionColor4
+
+		.var temp_position3 = $60
+		.var temp_position4 = $62
+		*/
+
+		//here we delete old position and switch to new position
+		//Left switch
+		
+
+		ldy #0
+		sty temp_var
+
+		clc
+		ldx old_position
+		stx temp_position4
+		ldx old_position+1
+		stx temp_position4+1
+				
+
+		lda temp_position4
+		sec
+	    sbc #1
+	    sta temp_position4
+		bne tquitk4
+		dec temp_position4+1
+tquitk4:
+		//lda temp_position4+1
+		//sbc #0 
+	    //sta temp_position4+1		
+
+
+		clc
+		ldx position
+		stx temp_position3
+		ldx position+1
+		stx temp_position3+1
+
+
+		inc temp_position3
+		bne tzrepc1
+		inc temp_position3+1
+tzrepc1:
+	
+
+		jsr setDelay2
+
+		
+
+		ldy #0
+		lda (temp_position3),y
+		cmp #$20
+		bne donotchangethisposition1
+
+		ldx #1
+		stx temp_var
+
+		lda #255  //char that we want to print
+        ldy #0 //offset
+        sta (temp_position3), y
+        
+        jsr setTempPositionColor3
+
+donotchangethisposition1:
+
+
+		lda #252  //char that we want to print
+        ldy #0 //offset
+        sta (temp_position4), y
+
+		lda #253  //char that we want to print
+        ldy #0 //offset
+        sta (old_position), y
+
+		lda #254  //char that we want to print
+        ldy #x0 //offset
+        sta (position), y 
+
+		jsr setPositionColor1
+		jsr setTempPositionColor4
+
+
+		jsr setDelay1
+		//jsr setDelay3
+		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
+
+		lda #$20  //char that we want to print
+        ldy #x0 //offset
+        sta (old_position), y
+        sta (temp_position4), y        
+
+		ldx temp_var
+		cpx #1
+		bne donotclearthisposition1
+
+
+		lda #$20  //char that we want to print
+        ldy #x0 //offset
+        sta (temp_position3), y
+        jsr clearTempPositionColor3
+
+donotclearthisposition1:
+		lda #228  //char that we want to print
+        ldy #x0 //offset
+        sta (position), y
+
+        jsr clearOldPositionColor1
+		jsr clearTempPositionColor4      
+
+		jsr setDelay2
+		//jsr setDelay3
+		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
+		//---------------------------------------------------
+		/*
+		lda position
+        sta old_position 
+		lda position+1
+        sta old_position+1
+        */
+        rts
+}
+
+
+AnimateRightMove: {
+
+	    //we are animate from a to d
+	    //a b
+	    //c d
+		//.byte	$00,$00,$00,$00,$07,$0F,$0D,$0F	// #252 $FC [left up]
+		//.byte	$00,$00,$00,$00,$E0,$F0,$B0,$F0	// #253 $FD [right up]
+		//.byte	$0F,$0F,$0E,$0F,$07,$00,$00,$00	// #254 $FE [left down]
+		//.byte	$F0,$F0,$70,$F0,$E0,$00,$00,$00	// #255 $FF [right down]
+		//---------------------------------------------------
+		// a -- old_position - #252 
+		// b -- (old_position+1) - #253 - temp_position3
+		// c -- (position-1) - #254 - temp_position4
+		// d -- position - #255  
+
+		/*
+		setTempPositionColor3
+		clearTempPositionColor3
+
+		setTempPositionColor4
+		clearTempPositionColor4
+
+		.var temp_position3 = $60
+		.var temp_position4 = $62
+		*/
+
+		//here we delete old position and switch to new position
+		//Left switch
+		
+
+		ldy #0
+		sty temp_var
+
+		clc
+		ldx position
+		stx temp_position4
+		ldx position+1
+		stx temp_position4+1
+				
+
+		lda temp_position4
+		sec
+	    sbc #1
+	    sta temp_position4
+		bne tquitkzu64
+		dec temp_position4+1
+tquitkzu64:
+		//lda temp_position4+1
+		//sbc #0 
+	    //sta temp_position4+1		
+
+
+		clc
+		ldx old_position
+		stx temp_position3
+		ldx old_position+1
+		stx temp_position3+1
+
+
+		inc temp_position3
+		bne tzrepcx169a
+		inc temp_position3+1
+tzrepcx169a:
+	
+
+		jsr setDelay2
+		//jsr setDelay3
+
+		ldy #0
+		lda (temp_position4),y
+		cmp #$20
+		bne donotchangethisposition2
+
+		ldx #1
+		stx temp_var
+
+		lda #254  //char that we want to print
+        ldy #0 //offset
+        sta (temp_position4), y
+        
+        jsr setTempPositionColor4
+
+donotchangethisposition2:
+
+
+		lda #253  //char that we want to print
+        ldy #0 //offset
+        sta (temp_position3), y
+
+		lda #252  //char that we want to print
+        ldy #0 //offset
+        sta (old_position), y
+
+		lda #255  //char that we want to print
+        ldy #x0 //offset
+        sta (position), y 
+
+		jsr setPositionColor1
+		jsr setTempPositionColor3
+
+
+		jsr setDelay1
+		//jsr setDelay3
+		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
+
+		lda #$20  //char that we want to print
+        ldy #x0 //offset
+        sta (old_position), y
+        sta (temp_position3), y        
+
+		ldx temp_var
+		cpx #1
+		bne donotclearthisposition2
+
+
+		lda #$20  //char that we want to print
+        ldy #x0 //offset
+        sta (temp_position4), y
+        jsr clearTempPositionColor4
+
+donotclearthisposition2:
+		lda #228  //char that we want to print
+        ldy #x0 //offset
+        sta (position), y
+
+        jsr clearOldPositionColor1
+		jsr clearTempPositionColor3      
+
+		jsr setDelay2
+		//jsr setDelay3
+		//--------------------------------------------------------------------------------HERE WE DEFINE SPEED!!!!
+		//---------------------------------------------------
+		
+		/*
+		lda position
+        sta old_position 
+		lda position+1
+        sta old_position+1
+        */
+
+        rts
+}
+
 
 setPositionAndColorIndex: {
 
@@ -571,6 +776,83 @@ clearOldPositionColor1: {
 }
 
 
+setTempPositionColor3: {
+
+//---------------------------------------set position color--------------------
+		lda temp_position3
+        sta color_position 
+		clc
+		lda temp_position3+1
+        adc #$d4
+        sta color_position+1 
+        clc
+        ldy #0 //offset
+        lda char_color
+        sta (color_position),y
+
+        rts
+//---------------------------------------set position color--------------------
+}
+
+clearTempPositionColor3: {
+
+//---------------------------------------set position color--------------------
+		lda temp_position3
+        sta color_position 
+		clc
+		lda temp_position3+1
+        adc #$d4
+        sta color_position+1 
+        clc
+        ldy #0 //offset
+        lda #$ff
+        sta (color_position),y
+
+        rts
+//---------------------------------------set position color--------------------
+}
+
+//------------------------------------------------------------------------------
+
+setTempPositionColor4: {
+
+//---------------------------------------set position color--------------------
+		lda temp_position4
+        sta color_position 
+		clc
+		lda temp_position4+1
+        adc #$d4
+        sta color_position+1 
+        clc
+        ldy #0 //offset
+        lda char_color
+        sta (color_position),y
+
+        rts
+//---------------------------------------set position color--------------------
+}
+
+clearTempPositionColor4: {
+
+//---------------------------------------set position color--------------------
+		lda temp_position4
+        sta color_position 
+		clc
+		lda temp_position4+1
+        adc #$d4
+        sta color_position+1 
+        clc
+        ldy #0 //offset
+        lda #$ff
+        sta (color_position),y
+
+        rts
+//---------------------------------------set position color--------------------
+}
+
+
+
+//------------------------------------------------------------------------------
 checkIfPositionsAreEmpty: {
 
 	lda #0
@@ -739,6 +1021,8 @@ itisempty5:
 	rts
 }
 
+// positions_taken = #% 0 0 0 0           0            0      0       0
+//                            [down left] [down right] [down] [right] [left]  
 
 dropdownallAbove: {
 
@@ -1121,112 +1405,6 @@ jj33:
 }
 
 //-----------------------------CHECK 4 COLORS
-/*
-ChkColorsMatchVertial: {
-
-		//lda y_pos_min
-		//sta y2_pos
-		
-		lda #0
-		sta x2_pos
-		//sta chk_y_pos
-
-
-looprows1:
-
-		jsr ChkColorsMatchVertialLine
-
-		clc
-		inc x2_pos
-		lda x2_pos
-		cmp #40
-		bcc looprows1
-
-		rts
-}
-
-
-ChkColorsMatchVertialLine: {
-
-		lda #25
-		sta y2_pos
-
-		jsr getPositionAtXY
-
-		lda temp_position
-		sta chk_position
-		sta chk_position_temp
-		lda temp_position+1
-		sta chk_position+1
-		sta chk_position_temp+1
-
-		jsr ChkGetColor4Pos
-		lda chk_temp_color
-		sta chk_temp_color_prev
-
-		lda #24
-		sta chk_x_pos
-
-//---------------------------------------------
-opright1:
-		//ONE POSTION RIGHT		
-	    sec
-	    lda chk_position         //get the low byte of the first number
-	    sbc #40
-	    sta chk_position    //store in the low byte of the result
-	    lda chk_position+1     		//get the high byte of the first number
-		sbc #0
-	    sta chk_position+1     //store in high byte of the result
-
-	    clc
-	    sec
-
-		jsr ChkGetColor4Pos
-		lda chk_temp_color_prev
-		cmp chk_temp_color
-		bne contright1
-		//if same color dele them
-
-		ldy #0
-    	lda (chk_position),y
-		cmp #$20
-		beq contrightnonew1
-		
-		inc we_have_color_match
-
-contrightnonew1:
-
-		ldy #0
-    	lda #$20
-    	//lda #1
-    	sta (chk_position),y
-    	sta (chk_position_temp),y
-
-
-contright1:
-		
-		lda chk_temp_color
-		sta chk_temp_color_prev
-
-		lda chk_position
-		sta chk_position_temp
-		lda chk_position+1
-		sta chk_position_temp+1
-
-		dec chk_x_pos
-		lda chk_x_pos
-		cmp y_pos_min
-		bcs opright1		
-//---------------------------------------------
-
-		rts
-			
-}
-*/
-
-
-
-//-----------------------------CHECK 4 COLORS
 ChkColorsMatchVertial: {
 
 		//lda y_pos_min
@@ -1489,7 +1667,7 @@ looprows3:
 		sec	
 		dec y2_pos
 		lda y2_pos
-		cmp #20
+		cmp #16
 		bcs looprows3
 
 		rts
@@ -1556,12 +1734,7 @@ jj16:
 		rts
 			
 }
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
+
 //main check start 
 checkColorsAndPositionsMain: {
 
@@ -1714,21 +1887,23 @@ skip142:
 
 
 	//END now clear all
-	jsr playBigBeep
+	//jsr playBigBeep
 
 	jsr clearColorsInRow3
 
-	jsr setDelay1 
-	
 	jsr playBigBeep
 
+	jsr setDelay1 
+	
 	jsr clearColorsInRow4
+
+	jsr playBigBeep
 
 	jsr setDelay1 
 
-	jsr playbeep
-
 	jsr clearColorsInRow2
+
+	jsr playbeep
 
 skipdelay1:
 	rts
@@ -1987,34 +2162,13 @@ generateRnd: {
 	rts
 }
 
-/*
-setDelay0: {
-
-
-		ldx #0
-loopd1: 
-		nop
-		nop
-		nop
-		nop
-		nop
-        inx
-        cpx #225
-        bne loopd1
-        rts	
-}*/
 
 setDelay1: {
 
-/*
-ddt2:
-		lda #$f0
-		cmp $d012
-		bne ddt2
-*/
 		ldx #0
 ddt3:
-		lda #$b0
+		//lda #500
+		lda #0
 		cmp $d012
 		bne ddt3	
 
@@ -2046,26 +2200,30 @@ ddt3:
 
 setDelay2: {
 
-ddz2:
-		lda #$f0
+!:
+		lda #$12
 		cmp $d012
-		bne ddz2
+		bne !-
 
-ddz3:
-		lda #$b0
+!:
+		lda #$10
 		cmp $d012
-		bne ddz3
-
+		bne !-
+/*
+ddz4:
+		lda #$a0
+		cmp $d012
+		bne ddz4
+*/
         rts	
 }
 
 
 setDelay3: {
 
-dzdt3:
-		lda #$0
-		cmp $d012
-		bne dzdt3
+       lda #0
+!:     cmp $d012
+       bne !-
         rts	
 }
 
@@ -2142,6 +2300,8 @@ column_counter: .byte 0
 
 we_have_color_match: .byte 0
 we_have_row_match: .byte 0
+
+temp_var: .byte 0
 
 counter: .byte 0
 x_pos: .byte 0
@@ -2492,7 +2652,7 @@ charset:
 .byte	$FF, $FF, $FF, $FF, $FF, $00, $00, $00
 .byte	$FC, $FC, $FC, $FC, $FC, $FC, $00, $00
 .byte	$FF, $FF, $FF, $FF, $0F, $0F, $0F, $0F
-.byte	$F0, $F0, $F0, $F0, $FF, $FF, $FF, $FF
-.byte	$E7, $E7, $E7, $07, $07, $FF, $FF, $FF
-.byte	$0F, $0F, $0F, $0F, $FF, $FF, $FF, $FF
-.byte	$0F, $0F, $0F, $0F, $F0, $F0, $F0, $F0
+.byte	$00,$00,$00,$00,$07,$0F,$0D,$0F	// #252 $FC [left up]
+.byte	$00,$00,$00,$00,$E0,$F0,$B0,$F0	// #253 $FD [right up]
+.byte	$0F,$0F,$0E,$0F,$07,$00,$00,$00	// #254 $FE [left down]
+.byte	$F0,$F0,$70,$F0,$E0,$00,$00,$00	// #255 $FF [right down]
